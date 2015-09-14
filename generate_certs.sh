@@ -184,13 +184,12 @@ make_embedded_cert() {
   openssl x509 -in $cert_dir/$server-pre-cert.pem -serial -noout | \
     sed 's/serial=//' > $cert_dir/$ca-serial
 
-COMMENT
   issue_cert $cert_dir $ca $server $cert_dir/$server-extensions.conf embedded \
     false $server
 
   # Restore the serial number
   mv $cert_dir/$ca-serial.bak $cert_dir/$ca-serial
-
+COMMENT
 }
 
 make_end_certs() {
@@ -215,6 +214,20 @@ make_end_certs() {
   issue_cert $cert_dir $ca $server $modified_config endcert false $server-out
 }
 
+make_embbed_end_certs() {
+  local cert_dir=$1 # Where CA certificate lives and output certs go
+  local server=$2 # Prefix of the new certificate filename
+  local ca=$3 # Prefix of the CA certificate file.
+
+  local modified_config=${cert_dir}/${server}_precert.conf
+  cp precert.conf $modified_config
+
+  # Generate a new, unencrypted private key and CSR
+  request_cert $cert_dir $server $modified_config false
+
+  issue_cert $cert_dir $ca $server $modified_config pre false $server-pre
+}
+
 # Generate new certs dynamically and repeat the test for valid certs
 mkdir -p tmp
 # A directory for trusted certs in OpenSSL "hash format"
@@ -223,9 +236,15 @@ mkdir -p tmp/ca-hashes
 make_ca_certs `pwd`/tmp `pwd`/tmp/ca-hashes ca
 
 make_intermediate_ca_certs `pwd`/tmp intermediate ca
-make_end_certs `pwd`/tmp test1 intermediate 
-make_end_certs `pwd`/tmp test2 intermediate 
+
+for((i=1;i<50;i++));
+do
+  name="test"${i}
+  make_embbed_end_certs  `pwd`/tmp $name intermediate
+done
 
 comment(){
+make_end_certs `pwd`/tmp test1 intermediate 
+make_end_certs `pwd`/tmp test2 intermediate 
 make_embedded_cert `pwd`/tmp test-embedded intermediate "" false false 
 }
